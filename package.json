@@ -19,7 +19,7 @@
     "@effect/vitest": "^0.29.0",
     "@types/bun": "latest",
     "typescript": "^5.9.0",
-    "vitest": "^4.1.2"
+    "vitest": "^3.2.0"
   },
   "dependencies": {
     "@effect/cli": "^0.75.0",

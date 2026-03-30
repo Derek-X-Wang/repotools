@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest"
-import { Schema } from "effect"
+import { describe, expect } from "vitest"
+import { it } from "@effect/vitest"
+import { Effect, Exit, Schema } from "effect"
 import { RepoToolsConfig } from "../../src/schema/config.js"
+import { ConfigService } from "../../src/services/config.js"
 
 describe("RepoToolsConfig schema", () => {
   const decode = Schema.decodeUnknownSync(RepoToolsConfig)
@@ -66,4 +68,37 @@ describe("RepoToolsConfig schema", () => {
       })
     ).toThrow()
   })
+})
+
+describe("ConfigService", () => {
+  it.effect("loads valid config from cwd", () =>
+    Effect.gen(function* () {
+      const config = yield* ConfigService
+      const result = yield* config.load("/project")
+      expect(result.tools).toBeDefined()
+      expect(result.tools.mycli).toBeDefined()
+      expect(result.tools.mycli.version).toBe("latest")
+    }).pipe(
+      Effect.provide(
+        ConfigService.Test({
+          "/project/repotools.json": JSON.stringify({
+            tools: {
+              mycli: {
+                source: { type: "github-release", repo: "org/repo" },
+                version: "latest",
+              },
+            },
+          }),
+        })
+      )
+    )
+  )
+
+  it.effect("fails with ConfigNotFoundError when file missing", () =>
+    Effect.gen(function* () {
+      const config = yield* ConfigService
+      const exit = yield* config.load("/project").pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+    }).pipe(Effect.provide(ConfigService.Test({})))
+  )
 })
