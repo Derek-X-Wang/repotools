@@ -1,0 +1,30 @@
+{
+  "name": "repotools",
+  "version": "0.1.0",
+  "description": "Declarative CLI tool manager for repositories",
+  "type": "module",
+  "main": "src/cli.ts",
+  "bin": {
+    "repotools": "src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "build": "bun build src/cli.ts --compile --outfile repotools",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@effect/vitest": "^0.29.0",
+    "@types/bun": "latest",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.75.0",
+    "@effect/platform": "^0.96.0",
+    "@effect/platform-bun": "^0.89.0",
+    "effect": "^3.21.0"
+  }
+}
