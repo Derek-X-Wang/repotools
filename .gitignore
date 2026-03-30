@@ -4,3 +4,4 @@ dist/
 repotools
 *.tsbuildinfo
 .DS_Store
+.cursor/
