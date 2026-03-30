@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  BUN_VERSION: latest
+
+jobs:
+  check:
+    name: Typecheck & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install
+      - run: bun run typecheck
+      - run: bunx vitest run
+
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: darwin
+            arch: arm64
+            target: bun-darwin-arm64
+            ext: tar.gz
+          - os: darwin
+            arch: x64
+            target: bun-darwin-x64
+            ext: tar.gz
+          - os: linux
+            arch: x64
+            target: bun-linux-x64
+            ext: tar.gz
+          - os: linux
+            arch: arm64
+            target: bun-linux-arm64
+            ext: tar.gz
+          - os: windows
+            arch: x64
+            target: bun-windows-x64
+            ext: zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install
+
+      - name: Build binary
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            bun build src/cli.ts --compile --target=${{ matrix.target }} --outfile repotools.exe
+          else
+            bun build src/cli.ts --compile --target=${{ matrix.target }} --outfile repotools
+          fi
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ARCHIVE="repotools-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            zip "${ARCHIVE}.zip" repotools.exe
+          else
+            tar czf "${ARCHIVE}.tar.gz" repotools
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repotools-${{ matrix.os }}-${{ matrix.arch }}
+          path: repotools-*.${{ matrix.ext }}
+
+  release:
+    name: Create Release & Update Homebrew
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum repotools-* > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "repotools ${{ github.ref_name }}" \
+            --generate-notes \
+            artifacts/*
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          REPO="Derek-X-Wang/repotools"
+
+          # Compute SHA256 for each platform
+          SHA_DARWIN_ARM64=$(sha256sum artifacts/repotools-${VERSION}-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_DARWIN_X64=$(sha256sum artifacts/repotools-${VERSION}-darwin-x64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_X64=$(sha256sum artifacts/repotools-${VERSION}-linux-x64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_ARM64=$(sha256sum artifacts/repotools-${VERSION}-linux-arm64.tar.gz | cut -d' ' -f1)
+
+          BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+
+          # Generate formula
+          cat > formula.rb << FORMULA
+          class Repotools < Formula
+            desc "Declarative CLI tool manager for repositories"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION#v}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/repotools-${VERSION}-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "${BASE_URL}/repotools-${VERSION}-darwin-x64.tar.gz"
+                sha256 "${SHA_DARWIN_X64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/repotools-${VERSION}-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "${BASE_URL}/repotools-${VERSION}-linux-x64.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
+
+            def install
+              bin.install "repotools"
+            end
+
+            test do
+              assert_match "repotools", shell_output("#{bin}/repotools --help")
+            end
+          end
+          FORMULA
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' formula.rb
+
+          # Push to tap repo
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/Derek-X-Wang/homebrew-repotools.git" tap
+          mkdir -p tap/Formula
+          cp formula.rb tap/Formula/repotools.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/repotools.rb
+          git commit -m "Update repotools to ${VERSION}"
+          git push
