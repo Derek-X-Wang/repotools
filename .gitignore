@@ -5,3 +5,4 @@ repotools
 *.tsbuildinfo
 .DS_Store
 .cursor/
+.claude/settings.local.json
