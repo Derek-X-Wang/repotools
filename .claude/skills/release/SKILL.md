@@ -18,11 +18,11 @@ The release workflow (`.github/workflows/release.yml`) triggers on any `v*` tag 
    - `bun-windows-x64`
 3. **Packages** each as `repotools-<version>-<os>-<arch>.tar.gz` (`.zip` for Windows)
 4. **Creates a GitHub Release** with all archives + `checksums.txt`
-5. **Updates the Homebrew tap** at `Derek-X-Wang/homebrew-repotools` with new SHA256 hashes
+5. **Updates the Homebrew tap** at `Derek-X-Wang/homebrew-tap` (shared tap, `Formula/repotools.rb`) with new SHA256 hashes
 
 Users install via:
 ```bash
-brew tap Derek-X-Wang/repotools && brew install repotools
+brew tap derek-x-wang/tap && brew install repotools
 ```
 
 ## Release steps
@@ -77,25 +77,25 @@ git push && git push --tags
 This triggers the release workflow. Monitor it at:
 `https://github.com/Derek-X-Wang/repotools/actions`
 
-## HOMEBREW_TAP_TOKEN setup
+## TAP_GITHUB_TOKEN setup
 
-The release workflow needs a `HOMEBREW_TAP_TOKEN` secret to push formula updates to the tap repo. If the release workflow fails at the "Update Homebrew tap" step, this token is likely missing.
+The release workflow needs a `TAP_GITHUB_TOKEN` secret to push formula updates to the shared tap repo. If the release workflow fails at the "Update Homebrew tap" step, this token is likely missing.
 
-To set it up:
+This is the **shared** fine-grained PAT (same one uncluster and the other tools use), scoped to `Derek-X-Wang/homebrew-tap` + `Derek-X-Wang/scoop-bucket` only. To set it up:
 
 1. Go to https://github.com/settings/personal-access-tokens/new
 2. Create a **fine-grained token**:
-   - **Name:** `homebrew-tap-repotools`
-   - **Repository access:** Only select `Derek-X-Wang/homebrew-repotools`
+   - **Name:** `shared-tap-token`
+   - **Repository access:** Only select `Derek-X-Wang/homebrew-tap` (and `scoop-bucket`)
    - **Permissions:** Contents → Read and write
 3. Add it as a secret:
    ```bash
-   gh secret set HOMEBREW_TAP_TOKEN --repo Derek-X-Wang/repotools
+   gh secret set TAP_GITHUB_TOKEN --repo Derek-X-Wang/repotools
    ```
    (paste the token when prompted)
 
 ## Troubleshooting
 
 - **Build fails:** Check the Actions log. Usually a typecheck or test failure — fix and re-tag.
-- **Homebrew tap not updating:** Verify `HOMEBREW_TAP_TOKEN` is set and has write access to `homebrew-repotools`.
+- **Homebrew tap not updating:** Verify `TAP_GITHUB_TOKEN` is set and has write access to `homebrew-tap`.
 - **Wrong version in binary:** Make sure both `package.json` and the `version` field in `src/cli.ts` were updated.

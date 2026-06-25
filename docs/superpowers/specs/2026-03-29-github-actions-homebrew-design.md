@@ -1,5 +1,13 @@
 # GitHub Actions + Homebrew Deployment Design
 
+> **Migration note (2026-06-24):** Homebrew distribution moved from the per-project
+> tap `Derek-X-Wang/homebrew-repotools` to the shared consolidated tap
+> `Derek-X-Wang/homebrew-tap` (standard `Formula/<tool>.rb` layout, multiple tools
+> per tap). The push secret is now `TAP_GITHUB_TOKEN` (a shared fine-grained PAT
+> scoped to `homebrew-tap` + `scoop-bucket`). Install is now
+> `brew tap derek-x-wang/tap && brew install repotools`. References below have been
+> updated to reflect this.
+
 ## Goal
 
 Automate the build, release, and Homebrew distribution of repotools so that pushing a git tag (`v*`) produces cross-platform binaries, a GitHub Release, and an updated Homebrew formula — with zero manual steps after the tag push.
@@ -10,10 +18,10 @@ Automate the build, release, and Homebrew distribution of repotools so that push
 |--------|----------|
 | Trigger | Git tag push matching `v*` |
 | Platforms | macOS (arm64, x64), Linux (x64, arm64), Windows (x64) |
-| Distribution | Homebrew tap (`Derek-X-Wang/homebrew-repotools`) + GitHub Release |
+| Distribution | Shared Homebrew tap (`Derek-X-Wang/homebrew-tap`) + GitHub Release |
 | Automation | Fully automated — tag → build → release → tap update |
-| Auth | `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with `repo` scope) |
-| Tap repo creation | Via `gh repo create` (no local clone needed) |
+| Auth | `TAP_GITHUB_TOKEN` repo secret (shared fine-grained PAT, `homebrew-tap` + `scoop-bucket`, Contents: read/write) |
+| Tap repo | Shared, pre-existing — this project owns only `Formula/repotools.rb` |
 
 ## Architecture
 
@@ -46,11 +54,11 @@ Automate the build, release, and Homebrew distribution of repotools so that push
    - Windows: `repotools-<version>-windows-x64.zip`
 4. **Checksum** — generate `checksums.txt` with SHA256 for all archives
 5. **Release** — create GitHub Release via `gh release create`, attach all archives + checksums
-6. **Update Homebrew tap** — generate formula, push to `Derek-X-Wang/homebrew-repotools`
+6. **Update Homebrew tap** — generate formula, push to `Derek-X-Wang/homebrew-tap`
 
 ### Homebrew Tap
 
-**Repo:** `Derek-X-Wang/homebrew-repotools` (public, created via `gh repo create`)
+**Repo:** `Derek-X-Wang/homebrew-tap` (public, shared across tools — this project owns only `Formula/repotools.rb`)
 
 **Formula:** `Formula/repotools.rb`
 
@@ -61,7 +69,7 @@ The formula:
 - Covers macOS (arm64, x64) and Linux (x64, arm64) only (no Windows via Homebrew)
 
 **Formula update mechanism:**
-The release workflow clones the tap repo (shallow), writes the generated formula, commits, and pushes using `HOMEBREW_TAP_TOKEN`.
+The release workflow clones the shared tap repo, writes the generated formula to `Formula/repotools.rb` (leaving other tools' files untouched), commits, and pushes using `TAP_GITHUB_TOKEN`.
 
 ### Asset Naming Convention
 
@@ -78,7 +86,7 @@ checksums.txt
 
 | Secret | Purpose | Scope |
 |--------|---------|-------|
-| `HOMEBREW_TAP_TOKEN` | Push formula updates to `homebrew-repotools` | GitHub PAT with `repo` scope |
+| `TAP_GITHUB_TOKEN` | Push formula updates to shared `homebrew-tap` | Shared fine-grained PAT, `homebrew-tap` + `scoop-bucket`, Contents: read/write |
 
 Note: `GITHUB_TOKEN` (auto-provided) handles release creation in the same repo.
 
@@ -86,7 +94,7 @@ Note: `GITHUB_TOKEN` (auto-provided) handles release creation in the same repo.
 
 ```bash
 # Install
-brew tap Derek-X-Wang/repotools
+brew tap derek-x-wang/tap
 brew install repotools
 
 # Use
@@ -112,7 +120,7 @@ git push --tags
 |------|------|---------|
 | `.github/workflows/ci.yml` | repotools | PR/push CI: typecheck + tests |
 | `.github/workflows/release.yml` | repotools | Tag-triggered: build, release, tap update |
-| `Formula/repotools.rb` | homebrew-repotools | Homebrew formula (auto-generated) |
+| `Formula/repotools.rb` | homebrew-tap | Homebrew formula (auto-generated) |
 
 ## Future Registries
 

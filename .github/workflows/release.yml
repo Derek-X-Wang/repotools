@@ -114,7 +114,7 @@ jobs:
 
       - name: Update Homebrew tap
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME}"
           REPO="Derek-X-Wang/repotools"
@@ -168,8 +168,8 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' formula.rb
 
-          # Push to tap repo
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/Derek-X-Wang/homebrew-repotools.git" tap
+          # Push to shared tap repo
+          git clone "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/Derek-X-Wang/homebrew-tap.git" tap
           mkdir -p tap/Formula
           cp formula.rb tap/Formula/repotools.rb
           cd tap
